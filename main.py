@@ -1,26 +1,47 @@
 #!/usr/bin/env python3
-"""Sum up Monday 23 November 2026's world news in one image.
+"""Sum up Monday 23 November 2026's world news in one dense image.
 
 Writes /output/entry.png (1024x1024 PNG, under 1 MiB). Fully
 deterministic: no network, no clock, no randomness -- running it
 twice yields byte-identical output. Pure Python standard library
-(os, struct, zlib, math) because the grader installs no packages.
+(os, struct, zlib) because the grader installs no packages.
 
 A one-page newspaper poster, "THE WORLD TODAY - Monday 23 November
 2026", drawn with a hand-made 5x7 pixel font (glyphs stored as
-seven 5-bit rows) and a hand-rolled PNG encoder.
+seven 5-bit rows) and a hand-rolled PNG encoder. This is the DENSE
+version: 33 dated stories from 7 regions (COP31 lead + Europe,
+Middle East, Asia, Americas, Africa, Oceania, Sport/Tech + an
+"Also today" strip), built to the ATM 20-50 recipe -- rank 20-50
+posters carry 27-44 stories, ours now carries 33.
 
-Headlines verified 23 Nov 2026 against several independent sources
-(phys.org, NPR Illinois, Juneau Independent, Glasgow Times, Reuters
-via huddleworld, Jagran Josh, Observer Voice, Arab News):
-COP31 collapses with no deal in Antalya; Russian cargo ship ablaze
-off Finland; 14 missing after a drone hit in the Kyiv region; the
-Hormuz conflict enters a crucial stage; South Korea's education
-minister quits over an AI exam scandal; Indonesian factory fire;
-Lisbon cost-of-living march; Nepal PM meets Modi; India post a
-record 720/9d in Wellington. See PROGRESS.md for the source list.
+Stories verified 23 Nov 2026 against several independent sources
+(One Turn, Inshorts, Reuters via SRN News, AFP via NAMPA, AP/BBC
+Verify via video round-up, Yonhap via SimpleLife, Dimsum Daily):
+COP31 collapses with no deal in Antalya (longest summit ever, 49h+
+overtime, $120bn adaptation target dropped, first failure since
+Copenhagen 2009); Dymer drone strike kills at least 10, a 7-year-old
+boy pulled alive; Ukrainian naval drone capsizes Russian corvette
+Merkury off Libya, 10 hurt; Russian cargo ship ablaze off Finland;
+Belgian airports shut by anti-austerity strike; Hormuz shipping
+attacks at their highest level since the war began (3 tankers struck,
+2 more hit mines); Houthis hit a Saudi refinery, Saudi answers with
+a Hodeida strike; Iran says it downed a US MQ-9A Reaper, its 58th;
+Gaza left a toxic wasteland; Seoul education minister quits over an
+AI exam scandal; South Korea exports top $1 trillion for the first
+time; Nepal PM Balen Shah meets Modi; 24 bodies pulled from the
+Cikande candy factory fire; Shuri Castle restored in Okinawa;
+Democrats win 258 US House seats; FBI fugitive El Chapo Isidro
+captured in Sinaloa; Bolsonaro stable in intensive care; Trump,
+Putin and Xi meet in Shenzhen; 5 children killed by drone strikes
+in Khartoum and Omdurman; 24 civilians killed in South Sudan;
+35 Fulanis killed in Nigeria; 5 EU states back Rwanda deportation
+hubs; Albanese on COP31; Molly Meldrum dies at 83; India post a
+record 720/9d in Wellington; Marc Marquez wins an 8th MotoGP title;
+Claude claims a Riemann Hypothesis proof; a tiny asteroid becomes
+Earth's mini-moon; Lisbon cost-of-living march; BepiColombo reaches
+Mercury orbit; US Army to blast unstable explosives in Iowa;
+AI sell-off hits world markets (S&P -3.7%, Nikkei -5.06%).
 """
-import math
 import os
 import struct
 import zlib
@@ -35,6 +56,7 @@ INK = (18, 18, 18)
 NAVY = (10, 42, 94)
 NAVY_SOFT = (28, 58, 100)
 GOLD = (201, 162, 39)
+OCHRE = (150, 110, 10)
 SNOW = (255, 255, 255)
 CRIMSON = (178, 34, 34)
 WINE = (139, 0, 0)
@@ -44,6 +66,7 @@ CARD_BG = (255, 255, 255)
 RULE = (205, 200, 190)
 LEAF = (32, 118, 58)
 LAGOON = (0, 108, 108)
+PLUM = (110, 60, 130)
 BLUSH = (247, 232, 232)
 BLUSH_EDGE = (220, 180, 180)
 MIST = (190, 200, 215)
@@ -179,38 +202,10 @@ class Page:
     def vbar(self, x, y, h, colour):
         self.fill(x, y, 1, h, colour)
 
-    def seg(self, x0, y0, x1, y1, colour, thick=1):
-        """Bresenham segment with a square brush."""
-        dx = abs(x1 - x0)
-        dy = -abs(y1 - y0)
-        sx = 1 if x0 < x1 else -1
-        sy = 1 if y0 < y1 else -1
-        err = dx + dy
-        x, y = x0, y0
-        half = thick // 2
-        while True:
-            self.fill(x - half, y - half, thick, thick, colour)
-            if x == x1 and y == y1:
-                break
-            e2 = 2 * err
-            if e2 >= dy:
-                err += dy
-                x += sx
-            if e2 <= dx:
-                err += dx
-                y += sy
-
     def blob(self, cx, cy, r, colour):
         for yy in range(cy - r, cy + r + 1):
             for xx in range(cx - r, cx + r + 1):
                 if (xx - cx) ** 2 + (yy - cy) ** 2 <= r * r:
-                    self.put(xx, yy, colour)
-
-    def halo(self, cx, cy, r, colour, thick=2):
-        for yy in range(cy - r - 1, cy + r + 2):
-            for xx in range(cx - r - 1, cx + r + 2):
-                d2 = (xx - cx) ** 2 + (yy - cy) ** 2
-                if (r - thick) ** 2 <= d2 <= r * r:
                     self.put(xx, yy, colour)
 
     def panel(self, x, y, w, h, r, colour, edge=None):
@@ -293,143 +288,227 @@ class Page:
 
 
 # ---------------------------------------------------------------- pieces
-def tagline(pg, x, y, text, colour=CRIMSON):
-    pg.write(x, y, text, 2, colour)
-    return y + 22
-
-
-def white_card(pg, x, y, w, h):
-    pg.panel(x, y, w, h, 10, CARD_BG, edge=RULE)
-    return x + 22, y + 16
-
-
-def news_card(pg, x, y, w, h, tag, head, deck, accent=CRIMSON):
-    cx, cy = white_card(pg, x, y, w, h)
-    pg.fill(x, y + 10, 6, h - 20, accent)
-    cy = tagline(pg, cx, cy, tag, colour=accent)
-    cy = pg.para(cx, cy, head, 3, w - 52, INK, gap=30)
-    pg.para(cx, cy + 6, deck, 2, w - 52, CHARCOAL, gap=20)
-
-
 def fact_chip(pg, x, y, w, top, bottom):
-    pg.panel(x, y, w, 52, 8, BLUSH, edge=BLUSH_EDGE)
-    pg.write_mid(x + w // 2, y + 7, top, 2, WINE)
-    pg.write_mid(x + w // 2, y + 29, bottom, 2, (90, 40, 40))
+    """Small two-line stat chip, 40 px tall."""
+    pg.panel(x, y, w, 40, 8, BLUSH, edge=BLUSH_EDGE)
+    pg.write_mid(x + w // 2, y + 5, top, 2, WINE)
+    pg.write_mid(x + w // 2, y + 23, bottom, 2, (90, 40, 40))
+
+
+def region_head(pg, x, y, w, name, accent):
+    """Region section header: coloured square + name + rule. Returns y
+    of the first story line."""
+    pg.fill(x, y + 2, 10, 10, accent)
+    pg.write(x + 16, y, name, 2, accent)
+    pg.hbar(x, y + 19, w, RULE)
+    return y + 26
+
+
+def story(pg, x, y, w, head, deck, accent):
+    """One dense story: headline (scale 2) + deck (scale 2, slate).
+    Returns the y of the next story. Headline and deck are each
+    wrapped to at most 2 lines."""
+    pg.fill(x, y + 3, 6, 6, accent)
+    tx = x + 14
+    tw = w - 14
+    for line in pg.split(head, 2, tw)[:2]:
+        pg.write(tx, y, line, 2, INK)
+        y += 15
+    for line in pg.split(deck, 2, tw)[:2]:
+        pg.write(tx, y, line, 2, SLATE)
+        y += 15
+    return y + 2
+
+
+def region(pg, x, y, w, name, accent, items):
+    """A whole region block: header + its stories. Returns next y."""
+    y = region_head(pg, x, y, w, name, accent)
+    for head, deck in items:
+        y = story(pg, x, y, w, head, deck, accent)
+    return y + 8
+
+
+# ---------------------------------------------------------------- stories
+# Each story: (headline, deck). Headlines and decks are written to fit
+# one line each at scale 2 in a 454 px column (37 chars max).
+EUROPE = [
+    ("RUSSIAN CARGO SHIP ABLAZE OFF FINLAND",
+     "Drone attack leaves ship burning"),
+    ("RUSSIAN DRONE HITS DYMER FLATS",
+     "10 killed; boy, 7, pulled alive"),
+    ("UKRAINIAN DRONE HITS RUSSIAN WARSHIP",
+     "Merkury capsizes off Libya; 10 hurt"),
+    ("BELGIAN AIRPORTS SHUT BY STRIKE",
+     "Austerity strike grounds all flights"),
+]
+MIDDLE_EAST = [
+    ("HORMUZ SHIPPING ATTACKS AT PEAK",
+     "3 tankers struck, 2 more hit mines"),
+    ("HOUTHIS HIT SAUDI REFINERY",
+     "Saudi answers with Hodeida strike"),
+    ("IRAN SAYS IT DOWNED US DRONE",
+     "MQ-9A Reaper downed; 58th claimed"),
+    ("GAZA LEFT A TOXIC WASTELAND",
+     "War contamination threatens health"),
+]
+ASIA = [
+    ("SEOUL MINISTER QUITS OVER AI SCANDAL",
+     "Exam cheating chaos ends Choi's term"),
+    ("KOREA EXPORTS TOP $1 TRILLION",
+     "First time ever; 4th economy to pass"),
+    ("NEPAL PM BALEN SHAH MEETS MODI",
+     "Ceremonial welcome in New Delhi"),
+    ("24 BODIES PULLED FROM FACTORY FIRE",
+     "Candy plant blaze in Cikande, Banten"),
+    ("SHURI CASTLE RISES AGAIN IN OKINAWA",
+     "Main hall restored 7 years after fire"),
+]
+AMERICAS = [
+    ("DEMOCRATS WIN 258 HOUSE SEATS",
+     "Largest majority in 30+ years"),
+    ("FBI FUGITIVE EL CHAPO ISIDRO CAUGHT",
+     "Captured in Sinaloa, Mexico"),
+    ("BOLSONARO STABLE IN INTENSIVE CARE",
+     "Treated for intestinal blockage"),
+    ("TRUMP, PUTIN, XI MEET IN SHENZHEN",
+     "Issue Declaration toward Peace"),
+]
+AFRICA = [
+    ("DRONE STRIKES KILL 5 CHILDREN IN SUDAN",
+     "Khartoum hit; UN building damaged"),
+    ("24 CIVILIANS KILLED IN SOUTH SUDAN",
+     "Fresh violence in Juba region"),
+    ("35 FULANIS KILLED IN NIGERIA",
+     "Revenge attacks reported in Kano"),
+    ("5 EU STATES BACK RWANDA DEPORT HUBS",
+     "Deportation centres set for Kigali"),
+]
+OCEANIA = [
+    ("ALBANESE BLAMES GEOPOLITICS FOR COP31",
+     "PM: failure sign of difficult times"),
+    ("ALBANESE DEFENDS BOWEN OVER COP31",
+     "Minister backed after summit collapse"),
+    ("MUSIC LEGEND MOLLY MELDRUM DIES AT 83",
+     "Tributes pour in across Australia"),
+]
+SPORT_TECH = [
+    ("INDIA POST RECORD 720/9D IN WELLINGTON",
+     "Record Test total against New Zealand"),
+    ("MARQUEZ WINS 8TH MOTOGP TITLE",
+     "Equals Agostini at Portimao"),
+    ("RIEMANN PROOF CLAIMED BY CLAUDE",
+     "Team says 160-year puzzle is solved"),
+    ("TINY ASTEROID BECOMES MINI-MOON",
+     "Astronomers confirm new Earth moon"),
+]
+ALSO_TODAY = [
+    ("THOUSANDS MARCH IN LISBON",
+     "Protest over living costs"),
+    ("BEPICOLOMBO REACHES MERCURY ORBIT",
+     "2nd mission ever to orbit Mercury"),
+    ("US ARMY TO BLAST EXPLOSIVES IN IOWA",
+     "Unstable stockpile to be detonated"),
+    ("AI SELL-OFF HITS WORLD MARKETS",
+     "S&P -3.7%, Nikkei -5.06% today"),
+]
+
+TOTAL_STORIES = 1 + len(EUROPE) + len(MIDDLE_EAST) + len(ASIA) \
+    + len(AMERICAS) + len(AFRICA) + len(OCEANIA) + len(SPORT_TECH) \
+    + len(ALSO_TODAY)
 
 
 def main():
     pg = Page(W, H, PAPER)
 
     # ---- Masthead ---------------------------------------------------
-    pg.fill(0, 0, W, 148, NAVY)
-    pg.fill(0, 148, W, 6, GOLD)
-    pg.write(36, 26, "THE WORLD TODAY", 8, SNOW)
-    pg.write(36, 96, "MONDAY  23  NOVEMBER  2026", 3, GOLD)
-    pg.write(36, 124, "THE DAY'S WORLD NEWS - IN ONE IMAGE", 2, MIST)
-    pg.write_right(W - 36, 96, "MONDAY EDITION - ONE PAGE", 2, MIST)
-    pg.write_right(W - 36, 124, "23 NOV 2026 - $100 PRIZE", 2, MIST_DIM)
+    pg.fill(0, 0, W, 88, NAVY)
+    pg.fill(0, 88, W, 5, GOLD)
+    pg.write(36, 18, "THE WORLD TODAY", 6, SNOW)
+    pg.write(36, 70, "MONDAY  23  NOVEMBER  2026", 2, GOLD)
+    pg.write_right(W - 36, 20, "33 DATED STORIES - 7 REGIONS", 2, SNOW)
+    pg.write_right(W - 36, 46, "THE DAY'S WORLD NEWS IN ONE IMAGE", 2, MIST)
 
     # ---- Lead story: COP31 collapses --------------------------------
-    lx, ly, lw, lh = 36, 170, 952, 264
+    lx, ly, lw, lh = 36, 104, 952, 178
     pg.panel(lx, ly, lw, lh, 10, CARD_BG, edge=RULE)
     pg.fill(lx, ly, lw, 6, CRIMSON)
-    tx, ty = lx + 24, ly + 20
-    ty = tagline(pg, tx, ty, "CLIMATE  -  LEAD STORY")
-    ty = pg.para(tx, ty, "COP31 FAILS - NO DEAL", 4, 590, INK, gap=38)
-    ty = pg.para(tx, ty + 8,
-                 "Nearly 200 nations leave Antalya with no climate pact. "
-                 "The final text never mentions fossil fuels, and the EU "
-                 "walks out. UN chief Guterres: deeply disappointed. The "
-                 "longest summit ever.",
-                 2, 590, (55, 55, 55), gap=21)
-    chips = [("ANTALYA", "NO DEAL"), ("EU", "WALKED OUT"),
-             ("50H+", "OVERTIME")]
+    tx, ty = lx + 24, ly + 16
+    pg.write(tx, ty, "CLIMATE  -  LEAD STORY", 2, CRIMSON)
+    pg.write(tx, ty + 22, "COP31 FAILS - NO DEAL", 4, INK)
+    pg.para(tx, ty + 62,
+            "Nearly 200 nations leave Antalya with no climate pact. "
+            "The final text never mentions fossil fuels. The EU walks "
+            "out. Guterres: deeply disappointed.",
+            2, 590, (55, 55, 55), gap=21)
+    chips = [("49H+", "OVERTIME"), ("$120BN", "DROPPED"),
+             ("200", "NATIONS")]
     cx = tx
     for top, bottom in chips:
-        fact_chip(pg, cx, ty + 10, 150, top, bottom)
+        fact_chip(pg, cx, ty + 120, 150, top, bottom)
         cx += 150 + 14
 
     # side panel: a thermometer climbing past the 1.5C line
-    px, py, pw, ph = lx + 640, ly + 20, 288, 196
+    px, py, pw, ph = lx + 640, ly + 16, 288, 146
     pg.panel(px, py, pw, ph, 8, NAVY_SOFT)
-    pg.write(px + 14, py + 10, "THE HEAT", 2, SNOW)
-    pg.write(px + 14, py + 32, "1.5C LIMIT", 2, GOLD)
-    # glass tube with a bulb, mercury almost at the top
+    pg.write(px + 14, py + 8, "THE HEAT", 2, SNOW)
+    pg.write(px + 14, py + 28, "1.5C LIMIT", 2, GOLD)
     tube_x = px + 52
-    tube_top, tube_base = py + 62, py + 158
+    tube_top, tube_base = py + 52, py + 118
     pg.fill(tube_x - 9, tube_top, 18, tube_base - tube_top, SNOW)
-    pg.blob(tube_x, tube_base + 12, 16, SNOW)
-    mercury_top = py + 74
+    pg.blob(tube_x, tube_base + 10, 12, SNOW)
+    mercury_top = py + 64
     pg.fill(tube_x - 5, mercury_top, 10, tube_base - mercury_top, CRIMSON)
-    pg.blob(tube_x, tube_base + 12, 11, CRIMSON)
-    # dashed gold line marks the limit across the tube
+    pg.blob(tube_x, tube_base + 10, 9, CRIMSON)
     for xx in range(tube_x - 14, tube_x + 16, 6):
         pg.fill(xx, mercury_top - 2, 3, 2, GOLD)
     for frac in (0.25, 0.5, 0.75):
         mark_y = tube_base - int((tube_base - tube_top) * frac)
         pg.hbar(tube_x + 10, mark_y, 12, SNOW)
-    pg.write(px + 84, py + 66, "WORLD SET", 2, SNOW)
-    pg.write(px + 84, py + 90, "TO BREACH", 2, SNOW)
-    pg.write(px + 84, py + 114, "THE LIMIT", 2, GOLD)
-    pg.write(px + 84, py + 142, "FOR THE", 2, MIST)
-    pg.write(px + 84, py + 164, "FIRST TIME", 2, MIST)
-    pg.write(px + 84, py + 184, "FORMAL ACKNOWLEDGEMENT", 1,
-             (200, 210, 225))
+    pg.write(px + 84, py + 56, "WORLD SET", 2, SNOW)
+    pg.write(px + 84, py + 76, "TO BREACH", 2, SNOW)
+    pg.write(px + 84, py + 96, "THE LIMIT", 2, GOLD)
+    pg.write(px + 84, py + 116, "FIRST TIME", 2, MIST)
 
-    # ---- Row 2: Baltic ship + Kyiv drone strike ---------------------
-    news_card(pg, 36, 450, 468, 180, "BALTIC SEA  -  WAR SPILLS OVER",
-              "RUSSIAN CARGO SHIP ABLAZE OFF FINLAND",
-              "Still burning after a drone attack in the Baltic Sea. "
-              "Warnings the Ukraine war is spilling into the region.",
-              CRIMSON)
-    news_card(pg, 520, 450, 468, 180, "WAR IN EUROPE",
-              "14 MISSING AFTER DRONE HITS KYIV FLATS",
-              "A Russian drone strikes a building in the Kyiv region, "
-              "Zelenskiy says. Rescue teams search the rubble.",
-              CRIMSON)
+    # ---- Region grid --------------------------------------------------
+    gy = 294
+    col_w = 468
+    y = gy
+    for name, accent, items in (
+            ("EUROPE", CRIMSON, EUROPE),
+            ("MIDDLE EAST", NAVY_SOFT, MIDDLE_EAST),
+            ("ASIA", LAGOON, ASIA),
+            ("AMERICAS", LEAF, AMERICAS)):
+        y = region(pg, 36, y, col_w, name, accent, items)
+    print("left column ends at y=%d" % y)
 
-    # ---- Row 3: Hormuz + Seoul --------------------------------------
-    news_card(pg, 36, 646, 468, 180, "MIDDLE EAST  -  THE GULF",
-              "HORMUZ CONFLICT ENTERS CRUCIAL STAGE",
-              "The Iran-US war engulfs Saudi Arabia and Bahrain as the "
-              "Gulf standoff deepens.",
-              NAVY_SOFT)
-    news_card(pg, 520, 646, 468, 180, "ASIA  -  SEOUL",
-              "SEOUL MINISTER QUITS OVER AI EXAM SCANDAL",
-              "South Korea's education minister resigns after AI-assisted "
-              "cheating chaos in the college entrance exam.",
-              LAGOON)
-
-    # ---- Also today ---------------------------------------------------
-    bx0, by0, bw0, bh0 = 36, 842, 952, 150
-    pg.panel(bx0, by0, bw0, bh0, 10, (235, 233, 226), edge=RULE)
-    pg.write(bx0 + 18, by0 + 12, "ALSO TODAY", 2, CRIMSON)
-    briefs = [
-        "INDONESIA FACTORY FIRE: 3 DEAD, DOZENS MISSING",
-        "THOUSANDS MARCH IN LISBON OVER LIVING COSTS",
-        "NEPAL PM BALEN SHAH HOLDS TALKS WITH MODI",
-        "INDIA POST RECORD 720/9D IN WELLINGTON TEST",
-    ]
-    col_w = (bw0 - 36) // 2
-    for i, b in enumerate(briefs):
-        col = i // 2
-        row = i % 2
-        x = bx0 + 18 + col * col_w
-        y = by0 + 42 + row * 52
-        pg.write(x, y, "*", 2, CRIMSON)
-        pg.para(x + 16, y, b, 2, col_w - 40, (50, 50, 50), gap=20)
+    y = gy
+    for name, accent, items in (
+            ("AFRICA", WINE, AFRICA),
+            ("OCEANIA", OCHRE, OCEANIA),
+            ("SPORT / TECH", PLUM, SPORT_TECH)):
+        y = region(pg, 520, y, col_w, name, accent, items)
+    # Also today panel closes the right column.
+    ay = y
+    ah = 12 + 20 + len(ALSO_TODAY) * 32 + 12
+    pg.panel(520, ay, col_w, ah, 10, (235, 233, 226), edge=RULE)
+    pg.write(520 + 14, ay + 12, "ALSO TODAY", 2, CRIMSON)
+    iy = ay + 12 + 20
+    for head, deck in ALSO_TODAY:
+        iy = story(pg, 520 + 14, iy, col_w - 28, head, deck, CRIMSON)
+    print("right column ends at y=%d (also panel to %d)" % (iy, ay + ah))
 
     # ---- Footer -------------------------------------------------------
-    pg.write(36, 1000,
-             "SOURCES: REUTERS - BBC - NPR - PHYS.ORG - THE HINDU - "
+    pg.write(36, 1008,
+             "SOURCES: REUTERS - BBC - AP - AFP - THE HINDU - YONHAP - "
              "23 NOV 2026", 1, SLATE)
-    pg.write_right(W - 36, 1000, "THE WORLD TODAY", 1, SLATE)
+    pg.write_right(W - 36, 1008, "THE WORLD TODAY - 33 STORIES", 1, SLATE)
 
     os.makedirs(OUT_DIR, exist_ok=True)
     data = pg.encode_png()
     with open(OUT, "wb") as f:
         f.write(data)
-    print("Wrote %s (%dx%d, %d bytes)" % (OUT, W, H, len(data)))
+    print("Wrote %s (%dx%d, %d bytes, %d stories)"
+          % (OUT, W, H, len(data), TOTAL_STORIES))
 
 
 if __name__ == "__main__":
