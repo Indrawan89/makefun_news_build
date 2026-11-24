@@ -247,6 +247,32 @@ class Page:
         self.write(cx - self.measure(text, scale) // 2, y, text, scale,
                    colour)
 
+    def write_scaled(self, x, y, text, scale, colour, num, den):
+        """Write text enlarged by num/den over the integer scale.
+
+        Renders the text at the integer scale into a scratch buffer,
+        then blits it with nearest-neighbour mapping, so the result is
+        exactly num/den times the integer-scale size (e.g. 9/8 gives
+        +12.5% width and +11.9% height for this 5x7 font). Used for
+        the masthead title, where the next integer scale (7) would be
+        +16.7% -- above the 10-15% brief -- and would collide with
+        the masthead side text.
+        """
+        w0 = self.measure(text, scale)
+        h0 = 7 * scale
+        tmp = Page(w0, h0, (0, 0, 0))
+        tmp.write(0, 0, text, scale, (255, 255, 255))
+        w1 = w0 * num // den
+        h1 = h0 * num // den
+        for yy in range(h1):
+            sy = yy * h0 // h1
+            for xx in range(w1):
+                sx = xx * w0 // w1
+                i = (sy * w0 + sx) * 3
+                if tmp.buf[i] or tmp.buf[i + 1] or tmp.buf[i + 2]:
+                    self.put(x + xx, y + yy, colour)
+        return w1
+
     def split(self, text, scale, width):
         lines, cur = [], ""
         for word in clean(text).split(" "):
@@ -423,10 +449,15 @@ def main():
     # ---- Masthead ---------------------------------------------------
     pg.fill(0, 0, W, 88, NAVY)
     pg.fill(0, 88, W, 5, GOLD)
-    pg.write(36, 18, "THE WORLD TODAY", 6, SNOW)
+    # R3: headline enlarged 9/8 over scale 6 -- 534x42 -> 600x47 px,
+    # i.e. +12.5% wide and +11.9% tall (inside the 10-15% brief).
+    # Scale 7 would be +16.7% and would collide with the side text.
+    pg.write_scaled(36, 18, "THE WORLD TODAY", 6, SNOW, 9, 8)
     pg.write(36, 70, "MONDAY  23  NOVEMBER  2026", 2, GOLD)
     pg.write_right(W - 36, 20, "33 DATED STORIES - 7 REGIONS", 2, SNOW)
-    pg.write_right(W - 36, 46, "THE DAY'S WORLD NEWS IN ONE IMAGE", 2, MIST)
+    # R3 spacing: the second side line moves 46 -> 67 so the wider
+    # headline (now ending at x=636) clears it; nothing else changes.
+    pg.write_right(W - 36, 67, "THE DAY'S WORLD NEWS IN ONE IMAGE", 2, MIST)
 
     # ---- Lead story: COP31 collapses --------------------------------
     lx, ly, lw, lh = 36, 104, 952, 178
